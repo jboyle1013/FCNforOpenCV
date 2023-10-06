@@ -17,9 +17,7 @@ def train(model, train_generator, val_generator, epochs=50):
     history = model.fit(train_generator,
                         steps_per_epoch=len(train_generator),
                         epochs=epochs,
-                        callbacks=[tf.keras.callbacks.ModelCheckpoint(model_path, monitor='val_loss',
-                                                                      save_best_only=True, verbose=1)],
-                        validation_data=val_generator,
+                         validation_data=val_generator,
                         validation_steps=len(val_generator))
     model.save("DiceFCN.keras")
     return history
