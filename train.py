@@ -3,6 +3,7 @@ from model import FCN_model
 from generator import Generator
 import os
 import matplotlib.pyplot as plt
+from export_savedmodel import export, testagainstimagewmodel
 
 
 def train(model, train_generator, val_generator, epochs=50):
@@ -12,15 +13,20 @@ def train(model, train_generator, val_generator, epochs=50):
 
     checkpoint_path = './snapshots'
     os.makedirs(checkpoint_path, exist_ok=True)
-    model_path = checkpoint_path + '/' + 'model_epoch_{epoch:02d}.keras'
-
+    check_path = checkpoint_path + '/' + 'model_epoch_{epoch:02d}.keras'
+    my_callbacks = [
+        tf.keras.callbacks.EarlyStopping(patience=2),
+        tf.keras.callbacks.ModelCheckpoint(filepath='model.{epoch:02d}-{val_loss:.2f}.keras'),
+        tf.keras.callbacks.TensorBoard(log_dir='./logs'),
+    ]
     history = model.fit(train_generator,
                         steps_per_epoch=len(train_generator),
                         epochs=epochs,
-                         validation_data=val_generator,
-                        validation_steps=len(val_generator))
-    model.save("DiceFCN.keras")
-    return history
+                        callbacks=my_callbacks,
+                        validation_data=val_generator,
+                        validation_steps=len(val_generator),
+                        shuffle=True)
+    return history, model
 
 
 if __name__ == "__main__":
@@ -32,13 +38,13 @@ if __name__ == "__main__":
     val_dir = 'dice/valid'
 
     # If you get out of memory error try reducing the batch size
-    BATCH_SIZE = 8
+    BATCH_SIZE = 4
     train_generator = Generator(train_dir, BATCH_SIZE, shuffle_images=True, image_min_side=24)
     val_generator = Generator(val_dir, BATCH_SIZE, shuffle_images=True, image_min_side=24)
     plt.figure(figsize=(20, 20))
 
-    EPOCHS = 20
-    history = train(model, train_generator, val_generator, epochs=EPOCHS)
+    EPOCHS = 50
+    history, model = train(model, train_generator, val_generator, epochs=EPOCHS)
 
     # Accuracy
     acc = history.history['accuracy']
@@ -47,7 +53,12 @@ if __name__ == "__main__":
     # loss
     loss = history.history['loss']
     val_loss = history.history['val_loss']
-
+    model.save("DiceFCN.keras")
+    model.save_weights(
+        "DiceFCNWeights", overwrite=True, save_format=None, options=None
+    )
+    testagainstimagewmodel(model)
+    export("DiceFCN.keras", "DiceFCNTF")
     # epochs
     epochs_range = range(EPOCHS)
     # Plotting graphs
@@ -63,4 +74,5 @@ if __name__ == "__main__":
     plt.plot(epochs_range, val_loss, label='Validation Loss')
     plt.legend(loc='upper right')
     plt.title('Training and Validation Loss')
+    plt.savefig("graph.png")
     plt.show()

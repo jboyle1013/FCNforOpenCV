@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import cv2
+from keras.src.preprocessing.image import ImageDataGenerator
 from sklearn import preprocessing
 import tensorflow as tf
 
@@ -22,9 +23,19 @@ class Generator(tf.keras.utils.Sequence):
         self.image_min_side = image_min_side
         self.load_image_paths_labels(DATASET_PATH)
         self.create_image_groups()
-    
+        self.datagen = ImageDataGenerator(
+            rescale=1.0 / 255.0,  # Normalize pixel values to [0, 1]
+            rotation_range=40,    # Random rotation between -40 and 40 degrees
+            width_shift_range=0.2,  # Random horizontal shift
+            height_shift_range=0.2, # Random vertical shift
+            shear_range=0.2,      # Shear angle in counter-clockwise direction
+            zoom_range=0.2,       # Random zoom between 80% and 120%
+            horizontal_flip=True, # Random horizontal flip
+            brightness_range=[0.5, 1.5]  # Random brightness adjustment
+        )
+
     def load_image_paths_labels(self, DATASET_PATH):
-        
+
         classes = os.listdir(DATASET_PATH)
         lb = preprocessing.LabelBinarizer()
         lb.fit(classes)
@@ -38,7 +49,7 @@ class Generator(tf.keras.utils.Sequence):
                 self.image_labels.append(class_name)
 
         self.image_labels = np.array(lb.transform(self.image_labels), dtype='float32')
-        
+
         assert len(self.image_paths) == len(self.image_labels)
 
     def create_image_groups(self):
@@ -53,8 +64,14 @@ class Generator(tf.keras.utils.Sequence):
         # Divide image_paths and image_labels into groups of BATCH_SIZE
         self.image_groups = [[self.image_paths[x % len(self.image_paths)] for x in range(i, i + self.batch_size)]
                               for i in range(0, len(self.image_paths), self.batch_size)]
-        self.label_groups = [[self.image_labels[x % len(self.image_labels)] for x in range(i, i + self.batch_size)]
-                              for i in range(0, len(self.image_labels), self.batch_size)]
+        self.label_groups = []
+        for i in range(0, len(self.image_labels), self.batch_size):
+            batch = []
+            for x in range(i, i + self.batch_size):
+                label = self.image_labels[x % len(self.image_labels)]
+                for k in range(2):
+                    batch.append(label)
+            self.label_groups.append(batch)
 
     def resize_image(self, img, min_side_len):
 
@@ -85,7 +102,9 @@ class Generator(tf.keras.utils.Sequence):
             elif img_shape == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img, rh, rw = self.resize_image(img, self.image_min_side)
+
             images.append(img)
+            images.append(self.datagen.random_transform(img))
 
         return images
 
@@ -94,14 +113,14 @@ class Generator(tf.keras.utils.Sequence):
         max_shape = tuple(max(image.shape[x] for image in image_group) for x in range(3))
 
         # construct an image batch object
-        image_batch = np.zeros((self.batch_size,) + max_shape, dtype='float32')
+        image_batch = np.zeros((self.batch_size * 2,) + max_shape, dtype='float32')
 
         # copy all images to the upper left part of the image batch object
         for image_index, image in enumerate(image_group):
             image_batch[image_index, :image.shape[0], :image.shape[1], :image.shape[2]] = image
 
         return image_batch
-    
+
     def __len__(self):
         """
         Number of batches for generator.
@@ -130,4 +149,3 @@ if __name__ == "__main__":
     image_batch, label_group = train_generator.__getitem__(0)
     print(image_batch.shape)
     print(label_group.shape)
-    
