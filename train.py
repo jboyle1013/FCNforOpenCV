@@ -4,19 +4,21 @@ from generator import Generator
 import os
 import matplotlib.pyplot as plt
 from export_savedmodel import export, testagainstimagewmodel
-
+from newmodel import NewFCN_model
+from maskishmodel import UNet_MaskRNN
+from mobilenetModel import MobileNet_Custom_Model
 
 def train(model, train_generator, val_generator, epochs=50):
     model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
                   loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+                  metrics='accuracy')
 
     checkpoint_path = './snapshots'
     os.makedirs(checkpoint_path, exist_ok=True)
     check_path = checkpoint_path + '/' + 'model_epoch_{epoch:02d}.keras'
     my_callbacks = [
         tf.keras.callbacks.EarlyStopping(patience=2),
-        tf.keras.callbacks.ModelCheckpoint(filepath='model.{epoch:02d}-{val_loss:.2f}.keras'),
+        tf.keras.callbacks.ModelCheckpoint(filepath='checkpoints/model.{epoch:02d}-{val_loss:.2f}.keras'),
         tf.keras.callbacks.TensorBoard(log_dir='./logs'),
     ]
     history = model.fit(train_generator,
@@ -30,6 +32,15 @@ def train(model, train_generator, val_generator, epochs=50):
 
 
 if __name__ == "__main__":
+
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            # Restrict TensorFlow to only allocate a fraction of GPU memory as needed
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError as e:
+            print(e)
     # Create FCN model
     model = FCN_model()
 
@@ -37,13 +48,16 @@ if __name__ == "__main__":
     train_dir = 'dice/train'
     val_dir = 'dice/valid'
 
+
     # If you get out of memory error try reducing the batch size
     BATCH_SIZE = 4
     train_generator = Generator(train_dir, BATCH_SIZE, shuffle_images=True, image_min_side=24)
     val_generator = Generator(val_dir, BATCH_SIZE, shuffle_images=True, image_min_side=24)
-    plt.figure(figsize=(20, 20))
 
-    EPOCHS = 50
+
+
+
+    EPOCHS = 30
     history, model = train(model, train_generator, val_generator, epochs=EPOCHS)
 
     # Accuracy
