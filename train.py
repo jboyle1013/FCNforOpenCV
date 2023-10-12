@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
 
 
-    EPOCHS = 30
+    EPOCHS = 50
     history, model = train(model, train_generator, val_generator, epochs=EPOCHS)
 
     # Accuracy
